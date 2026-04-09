@@ -1,6 +1,6 @@
-# Antigravity Pulse: Market Intelligence Platform 🚀
+# Market Pulse: Market Intelligence Platform 🚀
 
-Antigravity Pulse is a specialized, zero-cost market analysis suite designed to monitor specific sectors (Synbio, SMR, AI Infra, Commodities) across Telegram and news channels. It uses **NVIDIA NIM (Llama 3.2 Vision)** for multi-modal analysis and **Supabase** for persistent, self-learning data storage.
+Market Pulse is a specialized, zero-cost market analysis suite designed to monitor specific sectors (Synbio, SMR, AI Infra, Commodities) across Telegram and news channels. It uses **NVIDIA NIM (Llama 3.2 Vision)** for multi-modal analysis and **Supabase** for persistent, self-learning data storage.
 
 ## 🌟 Key Features
 - **Smart Monitoring**: Real-time Telegram listener for chart screenshots and news aggregation.
@@ -26,7 +26,7 @@ For full setup, calibration, and cloud deployment instructions, see the **[Usage
 ## 🛠 Project Structure
 - `platform_backend/`: Python-based research and monitoring engine.
 - `platform_dashboard/`: Next.js web dashboard.
-- `supabase/`: Database schema and aggregation procedures.
+- `supabase/`: Market Pulse Database Schema and aggregation procedures.
 
 ## 📄 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

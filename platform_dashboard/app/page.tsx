@@ -26,7 +26,7 @@ export default function Dashboard() {
       <header className="flex justify-between items-center mb-12 border-b border-slate-800 pb-6">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-            Antigravity Pulse
+            Market Pulse
           </h1>
           <p className="text-slate-400 mt-2">Market Intelligence & Signal Hub</p>
         </div>

@@ -1,4 +1,4 @@
--- Antigravity Pulse Database Schema
+-- Market Pulse Database Schema
 
 -- 1. Alerts Table (Stores buying signals and analysis)
 CREATE TABLE IF NOT EXISTS alerts (

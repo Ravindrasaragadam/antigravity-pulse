@@ -73,7 +73,7 @@ async def main():
     await client.start()
     await bot_client.start(bot_token=TELEGRAM_BOT_TOKEN)
     
-    print("Antigravity Pulse Monitor is LIVE.")
+    print("Market Pulse Monitor is LIVE.")
     print(f"Monitoring Chats: {TELEGRAM_ALLOWED_CHATS}")
     
     # Setup Scheduler for 15-30min reviews

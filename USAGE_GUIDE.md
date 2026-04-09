@@ -1,4 +1,4 @@
-# Antigravity Pulse: Usage & Configuration Guide 🚀
+# Market Pulse: Usage & Configuration Guide 🚀
 
 Welcome to your specialized Market Intelligence Platform. This guide will help you set up, calibrate, and deploy your scanner for maximum efficiency.
 
@@ -77,6 +77,28 @@ To fix workflow failures, you **must** add these secrets to your GitHub reposito
    - `VERCEL_TOKEN`: Your Vercel Personal Access Token.
    - `VERCEL_ORG_ID`: Your Vercel Team/User ID.
    - `VERCEL_PROJECT_ID`: Your Vercel Project ID.
+
+### Detailed Credential Collection Guide
+
+#### 1. Rendering (Backend Deploy Hook)
+1. Go to your [Render Dashboard](https://dashboard.render.com/).
+2. Click on your **Background Worker** (Market Pulse Backend).
+3. On the left sidebar, click **Settings**.
+4. Scroll down to the **Deploy Hooks** section.
+5. Click **Create Deploy Hook** (if not already there) and copy the unique URL.
+6. **GitHub Secret**: Add this as `RENDER_DEPLOY_HOOK`.
+
+#### 2. Vercel (Dashboard Deploy)
+- **VERCEL_TOKEN**:
+    1. Go to [Vercel Account Settings > Tokens](https://vercel.com/account/tokens).
+    2. Click **Create**, name it "GitHub Actions", and copy the token.
+- **VERCEL_ORG_ID** & **VERCEL_PROJECT_ID**:
+    1. In your terminal on your Mac, navigate to the `platform_dashboard` folder.
+    2. Run `npm install -g vercel` (if you don't have the CLI).
+    3. Run `vercel link`.
+    4. Follow the prompts to link the project to your Vercel account.
+    5. A hidden folder `.vercel` will be created. Open `.vercel/project.json`.
+    6. Copy the `orgId` (this is your `VERCEL_ORG_ID`) and `projectId` (this is your `VERCEL_PROJECT_ID`).
 
 ### Backend: Render (Free Tier)
 1. Create a **Background Worker** on [Render.com](https://render.com).

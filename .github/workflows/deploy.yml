@@ -1,4 +1,4 @@
-name: Antigravity Pulse Deploy
+name: Market Pulse Deploy
 
 on:
   push:
