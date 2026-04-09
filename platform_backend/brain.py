@@ -38,13 +38,22 @@ class AIAnalyzer:
         return response.choices[0].message.content
 
     def _build_prompt(self, data):
-        moves_str = "\n".join([f"- {m['symbol']}: {m['change']}% at {m['price']}" for m in data['moves']])
+        moves_str = "\n".join([f"- {m['symbol']}: {m['change']}% at ${m['price']}" for m in data['moves']])
         news_str = "\n".join([f"- {n['headline']} ({n['source']})" for n in data['local_news'] + data['global_news']])
+        focus_str = "\n".join([f"- {n['headline']} ({n['source']})" for n in data.get('focus_news', [])])
         
         prompt = f"""
-Analyze the following market data and provide a concise 'Market Signal'.
-Focus on Indian equity markets, but prioritize these specific areas of interest:
-{FOCUS_KEYWORDS if FOCUS_KEYWORDS else "General Market Trends"}
+Analyze the following market data and provide a concise 'Market Signal' for each of the following sectors: {FOCUS_KEYWORDS}.
+Focus primarily on these sectors and identify how specific news or price moves affect them.
+
+### Sector-Specific Focus News:
+{focus_str if focus_str else "No targeted news found for focus sectors today."}
+
+### Price Movements (Watchlist):
+{moves_str if moves_str else "No significant moves detected."}
+
+### General Market News:
+{news_str if news_str else "No major news headlines."}
 
 Identify and alert for any 'Market Corrections' or 'Big Moves' in these sectors.
 

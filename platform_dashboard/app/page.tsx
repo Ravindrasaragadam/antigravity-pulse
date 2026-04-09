@@ -6,17 +6,25 @@ import { supabase } from "@/lib/supabase";
 export default function Dashboard() {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchAlerts() {
-      const { data, error } = await supabase
-        .from("alerts")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10);
-      
-      if (!error && data) setAlerts(data);
-      setLoading(false);
+      try {
+        const { data, error: sbError } = await supabase
+          .from("alerts")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(10);
+        
+        if (sbError) throw sbError;
+        setAlerts(data || []);
+      } catch (err: any) {
+        console.error("Dashboard Fetch Error:", err);
+        setError(err.message || "Failed to connect to Supabase. Check your environment variables.");
+      } finally {
+        setLoading(false);
+      }
     }
     fetchAlerts();
   }, []);
@@ -49,6 +57,18 @@ export default function Dashboard() {
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-32 bg-slate-900 rounded-xl" />
               ))}
+            </div>
+          ) : error ? (
+            <div className="bg-rose-500/10 border border-rose-500/50 p-8 rounded-xl text-center">
+              <h3 className="text-xl font-bold text-rose-400 mb-2">Connection Error</h3>
+              <p className="text-slate-400 mb-4">{error}</p>
+              <p className="text-sm text-slate-500">
+                Ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set in Vercel.
+              </p>
+            </div>
+          ) : alerts.length === 0 ? (
+            <div className="bg-slate-900 border border-slate-800 p-12 rounded-xl text-center">
+              <p className="text-slate-500 italic">No signals found yet. The AI is still scanning...</p>
             </div>
           ) : (
             alerts.map((alert) => (
