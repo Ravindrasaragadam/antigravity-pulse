@@ -69,6 +69,15 @@ Send any **screenshot of a chart** to your monitored Telegram channel. The AI wi
 
 ## 🌐 4. Hosting & Deployment (Zero Cost)
 
+### GitHub Secrets Setup (Required for CI/CD)
+To fix workflow failures, you **must** add these secrets to your GitHub repository:
+1. Go to your repo on GitHub -> **Settings** -> **Secrets and variables** -> **Actions**.
+2. Click **New repository secret** and add:
+   - `RENDER_DEPLOY_HOOK`: Your Render "Deploy Hook" URL (found in Render dashboard -> Settings).
+   - `VERCEL_TOKEN`: Your Vercel Personal Access Token.
+   - `VERCEL_ORG_ID`: Your Vercel Team/User ID.
+   - `VERCEL_PROJECT_ID`: Your Vercel Project ID.
+
 ### Backend: Render (Free Tier)
 1. Create a **Background Worker** on [Render.com](https://render.com).
 2. Connect your GitHub Repo.
