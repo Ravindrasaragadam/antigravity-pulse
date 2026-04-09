@@ -36,14 +36,16 @@ class MarketMonitor:
 
     async def get_last_processed_id(self):
         """Fetch the last processed message ID from Supabase."""
-        state = self.db.supabase.table('system_state').select('value').eq('key', 'last_telegram_msg_id').execute()
+        if not self.db.client: return 0
+        state = self.db.client.table('system_state').select('value').eq('key', 'last_telegram_msg_id').execute()
         if state.data:
             return state.data[0]['value'].get('id', 0)
         return 0
 
     async def update_last_processed_id(self, msg_id):
         """Save the last processed message ID to Supabase."""
-        self.db.supabase.table('system_state').upsert({
+        if not self.db.client: return
+        self.db.client.table('system_state').upsert({
             'key': 'last_telegram_msg_id',
             'value': {'id': msg_id}
         }).execute()
