@@ -6,6 +6,7 @@ import CommoditiesWidget from "@/components/CommoditiesWidget";
 import TradingViewWidget from "@/components/TradingViewWidget";
 import StockGrid from "@/components/StockGrid";
 import AISummary from "@/components/AISummary";
+import StockAlerts from "@/components/StockAlerts";
 
 export default function Dashboard() {
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -174,7 +175,12 @@ export default function Dashboard() {
         <StockGrid stocks={filteredStocks} />
       </div>
 
-      {/* AI Summary */}
+      {/* Stock-Level Alerts */}
+      <div className="mb-8">
+        <StockAlerts market={market} />
+      </div>
+
+      {/* AI Summary - Market Trends */}
       <div className="mb-8">
         <AISummary market={market} />
       </div>
