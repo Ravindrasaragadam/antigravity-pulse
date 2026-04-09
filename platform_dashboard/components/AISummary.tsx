@@ -65,8 +65,20 @@ export default function AISummary({ market }: AISummaryProps) {
           Last 30 Minutes
         </span>
       </h2>
-      <div className="prose prose-invert prose-sm max-w-none prose-headings:text-white prose-h2:text-lg prose-h3:text-base prose-p:text-slate-300 prose-strong:text-white prose-ul:text-slate-300 prose-li:text-slate-300">
-        <ReactMarkdown>{summary}</ReactMarkdown>
+      <div className="text-slate-300 text-sm leading-relaxed space-y-4">
+        <ReactMarkdown
+          components={{
+            h1: ({children}) => <h1 className="text-xl font-bold text-white mb-3">{children}</h1>,
+            h2: ({children}) => <h2 className="text-lg font-semibold text-white mb-2 mt-4">{children}</h2>,
+            h3: ({children}) => <h3 className="text-base font-medium text-white mb-2 mt-3">{children}</h3>,
+            p: ({children}) => <p className="mb-3">{children}</p>,
+            ul: ({children}) => <ul className="list-disc list-inside mb-3 space-y-1">{children}</ul>,
+            li: ({children}) => <li className="ml-4">{children}</li>,
+            strong: ({children}) => <strong className="font-semibold text-white">{children}</strong>,
+            em: ({children}) => <em className="italic">{children}</em>,
+            a: ({children, href}) => <a href={href} className="text-cyan-400 hover:text-cyan-300 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+          }}
+        >{summary}</ReactMarkdown>
       </div>
     </div>
   );

@@ -10,10 +10,17 @@ class MarketResearcher:
         self.include_international = INCLUDE_INTERNATIONAL
         self.db = db
 
-    def get_stock_movements(self, filter_significant=True):
+    def get_stock_movements(self, filter_significant=True, watchlist=None):
         """Checks for movements in the watchlist. If filter_significant is False, returns all (for AI)."""
+        # Use dynamic watchlist if none provided
+        symbols = watchlist if watchlist is not None else (self.watchlist if self.watchlist else self.get_dynamic_watchlist())
+
+        if not symbols:
+            print("Warning: No watchlist symbols available")
+            return []
+
         results = []
-        for symbol in self.watchlist:
+        for symbol in symbols:
             if not symbol: continue
             try:
                 # For Indian market, use .NS suffix
@@ -23,7 +30,7 @@ class MarketResearcher:
                     ticker_sym = f"{symbol}.NS"
                     ticker = yf.Ticker(ticker_sym)
                     data = ticker.history(period="1d")
-                    
+
                     if data.empty:
                         # Try raw symbol as fallback
                         ticker_sym = symbol
@@ -34,7 +41,7 @@ class MarketResearcher:
                     ticker_sym = symbol
                     ticker = yf.Ticker(ticker_sym)
                     data = ticker.history(period="1d")
-                    
+
                     if data.empty and "." not in symbol:
                         ticker_sym = f"{symbol}.NS"
                         ticker = yf.Ticker(ticker_sym)
@@ -62,7 +69,7 @@ class MarketResearcher:
             "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms",
             "https://www.business-standard.com/rss/markets-106.rss"
         ]
-        
+
         for url in feeds:
             try:
                 response = requests.get(url, timeout=10)
@@ -76,7 +83,7 @@ class MarketResearcher:
                             pub_date = datetime.fromisoformat(item.pubDate.text.replace('Z', '+00:00'))
                         except:
                             pub_date = datetime.now(timezone.utc)
-                    
+
                     news_item = {
                         "headline": item.title.text,
                         "link": item.link.text,
@@ -84,15 +91,69 @@ class MarketResearcher:
                         "is_international": False,
                         "published_at": pub_date or datetime.now(timezone.utc)
                     }
-                    
+
                     # Filter out already-sent news if requested
                     if filter_sent and self.db and self.db.is_news_sent(news_item['headline'], news_item['link']):
                         continue
-                    
+
                     news_items.append(news_item)
             except Exception as e:
                 print(f"Error fetching news from {url}: {e}")
         return news_items
+
+    def extract_stocks_from_news(self, news_items):
+        """Extract stock symbols mentioned in news headlines."""
+        import re
+
+        # Common Indian stock patterns and major stocks to look for
+        common_stocks = {
+            'RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'ICICIBANK', 'SBIN', 'BAJFINANCE',
+            'BHARTIARTL', 'ITC', 'KOTAKBANK', 'LT', 'HINDUNILVR', 'AXISBANK',
+            'ASIANPAINT', 'MARUTI', 'TITAN', 'SUNPHARMA', 'ULTRACEMCO', 'NESTLEIND',
+            'WIPRO', 'POWERGRID', 'NTPC', 'M&M', 'TECHM', 'ADANIENT', 'ADANIPORTS',
+            'GRASIM', 'CIPLA', 'TATAMOTORS', 'DRREDDY', 'EICHERMOT', 'JSWSTEEL',
+            'HINDALCO', 'DIVISLAB', 'SBILIFE', 'HDFCLIFE', 'TATACONSUM', 'BPCL',
+            'BRITANNIA', 'APOLLOHOSP', 'UPL', 'SHREECEM', 'HEROMOTOCO', 'ONGC',
+            'COALINDIA', 'BAJAJ-AUTO', 'INDUSINDBK', 'TATASTEEL', 'HCLTECH'
+        }
+
+        found_stocks = set()
+        for item in news_items:
+            headline = item.get('headline', '').upper()
+            # Look for common stock symbols
+            for stock in common_stocks:
+                # Match whole word only
+                if re.search(r'\b' + re.escape(stock) + r'\b', headline):
+                    found_stocks.add(stock)
+        return list(found_stocks)
+
+    def get_dynamic_watchlist(self):
+        """Generate dynamic watchlist based on news and market activity."""
+        # Get recent news without deduplication to see all activity
+        print("Generating dynamic watchlist...")
+        all_news = self.get_indian_news(filter_sent=False)
+
+        # Extract stocks from news
+        news_stocks = self.extract_stocks_from_news(all_news)
+        print(f"Found {len(news_stocks)} stocks mentioned in recent news: {news_stocks}")
+
+        # If FOCUS_KEYWORDS is set, add related sector stocks
+        if FOCUS_KEYWORDS:
+            focus_keywords = [k.strip().upper() for k in FOCUS_KEYWORDS.split(',')]
+            print(f"Focus keywords: {focus_keywords}")
+
+        # If watchlist is empty, use news-based stocks
+        if not self.watchlist and news_stocks:
+            print(f"Using dynamic watchlist: {news_stocks[:15]}")  # Limit to 15 stocks
+            return news_stocks[:15]
+
+        # If we have a watchlist, append any newly discovered stocks
+        if self.watchlist and news_stocks:
+            combined = list(set(self.watchlist + news_stocks))
+            print(f"Combined watchlist: {combined[:20]}")  # Limit to 20 stocks
+            return combined[:20]
+
+        return self.watchlist if self.watchlist else []
 
     def get_global_news(self):
         """Scrapes global finance headlines if enabled."""
@@ -288,21 +349,41 @@ class MarketResearcher:
     def collect_india_data(self):
         """Collects India-specific data for India report."""
         thirty_mins_ago = datetime.now(timezone.utc) - timedelta(minutes=30)
-        
+
+        # Get dynamic watchlist if empty
+        if not self.watchlist:
+            dynamic_watchlist = self.get_dynamic_watchlist()
+            print(f"Using dynamic watchlist: {dynamic_watchlist}")
+        else:
+            dynamic_watchlist = None  # Will use existing watchlist
+
         # Get all news (with deduplication)
+        print("Fetching Indian news...")
         all_local_news = self.get_indian_news(filter_sent=True)
-        
+        print(f"Fetched {len(all_local_news)} Indian news items")
+
         # Filter news from last 30 mins
         recent_local_news = [
-            n for n in all_local_news 
+            n for n in all_local_news
             if n['published_at'] and n['published_at'] > thirty_mins_ago
         ]
-        
+        print(f"Recent news (last 30 mins): {len(recent_local_news)} items")
+
+        # Get focus news
+        print("Fetching focus news...")
+        focus_news = self.get_focus_news()
+        print(f"Fetched {len(focus_news)} focus news items")
+
+        # Get stock movements using dynamic watchlist
+        print("Fetching stock movements...")
+        moves = self.get_stock_movements(filter_significant=False, watchlist=dynamic_watchlist)
+        print(f"Fetched {len(moves)} stock movements")
+
         return {
-            "moves": self.get_stock_movements(filter_significant=False),
+            "moves": moves,
             "local_news": all_local_news,
             "recent_news": recent_local_news,
-            "focus_news": self.get_focus_news(),
+            "focus_news": focus_news,
             "commodities_news": self.get_commodities_news() if self.include_international else []
         }
     

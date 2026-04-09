@@ -1,4 +1,5 @@
 import base64
+import time
 from openai import OpenAI
 from .config import NVIDIA_NIM_API_KEY, NIM_BASE_URL, NIM_MODEL, FOCUS_KEYWORDS
 
@@ -12,6 +13,26 @@ class AIAnalyzer:
     def encode_image(self, image_path):
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode('utf-8')
+
+    def _call_nim_with_retry(self, messages, max_tokens=800, temperature=0.2, max_retries=3, retry_delay=30):
+        """Call NVIDIA NIM API with retry logic."""
+        for attempt in range(max_retries):
+            try:
+                response = self.client.chat.completions.create(
+                    model=NIM_MODEL,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                print(f"NIM API attempt {attempt + 1}/{max_retries} failed: {e}")
+                if attempt < max_retries - 1:
+                    print(f"Waiting {retry_delay} seconds before retry...")
+                    time.sleep(retry_delay)
+                else:
+                    return f"Unable to generate report due to API error: {str(e)}. Please check NVIDIA NIM API connection."
+        return None
 
     def analyze_market_state(self, research_data, image_path=None):
         """
@@ -28,24 +49,18 @@ class AIAnalyzer:
                 "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
             })
 
-        try:
-            response = self.client.chat.completions.create(
-                model=NIM_MODEL,
-                messages=[{"role": "user", "content": content}],
-                max_tokens=500,
-                temperature=0.2
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"Error analyzing market state: {e}")
-            return f"Unable to generate market state report due to API error: {str(e)}. Please check NVIDIA NIM API connection and try again."
+        return self._call_nim_with_retry(
+            messages=[{"role": "user", "content": content}],
+            max_tokens=500,
+            temperature=0.2
+        )
 
-    def analyze_india_market(self, india_data, image_path=None):
+    def analyze_india_market(self, india_data, image_path=None, dynamic_focus_areas=None):
         """
         Analyzes India-specific market data with dedicated sections.
         """
         content = [
-            {"type": "text", "text": self._build_india_prompt(india_data)}
+            {"type": "text", "text": self._build_india_prompt(india_data, dynamic_focus_areas)}
         ]
 
         if image_path:
@@ -55,24 +70,18 @@ class AIAnalyzer:
                 "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
             })
 
-        try:
-            response = self.client.chat.completions.create(
-                model=NIM_MODEL,
-                messages=[{"role": "user", "content": content}],
-                max_tokens=800,
-                temperature=0.2
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"Error analyzing India market: {e}")
-            return f"Unable to generate India market report due to API error: {str(e)}. Please check NVIDIA NIM API connection and try again."
+        return self._call_nim_with_retry(
+            messages=[{"role": "user", "content": content}],
+            max_tokens=800,
+            temperature=0.2
+        )
     
-    def analyze_us_market(self, us_data, image_path=None):
+    def analyze_us_market(self, us_data, image_path=None, dynamic_focus_areas=None):
         """
         Analyzes US/International market data.
         """
         content = [
-            {"type": "text", "text": self._build_us_prompt(us_data)}
+            {"type": "text", "text": self._build_us_prompt(us_data, dynamic_focus_areas)}
         ]
 
         if image_path:
@@ -82,17 +91,11 @@ class AIAnalyzer:
                 "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
             })
 
-        try:
-            response = self.client.chat.completions.create(
-                model=NIM_MODEL,
-                messages=[{"role": "user", "content": content}],
-                max_tokens=800,
-                temperature=0.2
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"Error analyzing US market: {e}")
-            return f"Unable to generate US market report due to API error: {str(e)}. Please check NVIDIA NIM API connection and try again."
+        return self._call_nim_with_retry(
+            messages=[{"role": "user", "content": content}],
+            max_tokens=800,
+            temperature=0.2
+        )
     
     def analyze_daily_summary(self, research_data):
         """
@@ -102,32 +105,122 @@ class AIAnalyzer:
             {"type": "text", "text": self._build_daily_summary_prompt(research_data)}
         ]
 
-        try:
-            response = self.client.chat.completions.create(
-                model=NIM_MODEL,
-                messages=[{"role": "user", "content": content}],
-                max_tokens=1000,
-                temperature=0.2
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            print(f"Error analyzing daily summary: {e}")
-            return f"Unable to generate daily summary due to API error: {str(e)}. Please check NVIDIA NIM API connection and try again."
+        return self._call_nim_with_retry(
+            messages=[{"role": "user", "content": content}],
+            max_tokens=1000,
+            temperature=0.2
+        )
 
     def analyze_telegram_summary(self, research_data, report_type="INDIA"):
         """Analyze data for short Telegram summary."""
+        prompt = self._build_telegram_summary_prompt(research_data, report_type)
+        return self._call_nim_with_retry(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500,
+            temperature=0.7
+        )
+
+    def analyze_focus_areas(self, research_data, current_focus_areas, market_conditions=""):
+        """Analyze market data to suggest dynamic focus areas based on trends.
+
+        Returns a list of suggested focus areas with priority and rationale.
+        """
+        moves_str = "\n".join([f"- {m['symbol']}: {m['change']}%" for m in research_data.get('moves', [])])
+        news_str = "\n".join([f"- {n['headline']} ({n['source']})" for n in research_data.get('local_news', []) + research_data.get('global_news', [])])
+        current_focus = ", ".join(current_focus_areas) if current_focus_areas else "None"
+
+        prompt = f"""
+You are a market trend analyst. Based on the current market data, identify the most important sectors, themes, and trends that investors should focus on.
+
+### CURRENT FOCUS AREAS:
+{current_focus}
+
+### MARKET CONDITIONS:
+{market_conditions}
+
+### DATA TO ANALYZE:
+**Price Movements:**
+{moves_str if moves_str else "No significant price movements"}
+
+**Recent News:**
+{news_str if news_str else "No recent news"}
+
+### YOUR TASK:
+Identify 5-7 key focus areas that are currently trending or important based on:
+1. Sectors showing significant price movements
+2. Recurring themes in news headlines
+3. Emerging trends that could impact markets
+4. Event-driven opportunities (earnings, policy changes, global events)
+5. Asset classes showing unusual activity
+
+### OUTPUT FORMAT:
+Return ONLY a JSON array of focus areas in this exact format:
+[
+  {{
+    "keyword": "sector or theme name",
+    "category": "SECTOR/THEME/EVENT/ASSET_CLASS",
+    "priority": 8,
+    "rationale": "Brief explanation of why this matters now",
+    "market_context": "TRENDING_UP/MARKET_CORRECTION/EMERGING/etc"
+  }}
+]
+
+Guidelines:
+- Priority: 1-10, higher = more urgent/important
+- Category: Use specific types like SECTOR (IT, Banking), THEME (AI, EV), EVENT (Earnings, Budget), ASSET_CLASS (Gold, Crypto)
+- Keep keywords concise (1-3 words)
+- Rationale should explain current market relevance
+- Consider both existing trends and emerging opportunities
+"""
+        response = self._call_nim_with_retry(
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800,
+            temperature=0.3
+        )
+
+        # Parse the JSON response
+        import json
+        import re
         try:
-            prompt = self._build_telegram_summary_prompt(research_data, report_type)
-            response = self.client.chat.completions.create(
-                model=NIM_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
-            )
-            return response.choices[0].message.content
+            # Try to extract JSON from the response
+            json_match = re.search(r'\[.*\]', response, re.DOTALL)
+            if json_match:
+                focus_areas = json.loads(json_match.group())
+                return focus_areas
+            else:
+                # If no JSON found, return empty list
+                print(f"Could not parse focus areas from response: {response[:200]}")
+                return []
         except Exception as e:
-            print(f"Error analyzing telegram summary: {e}")
-            return f"Unable to generate telegram summary due to API error: {str(e)}. Please check NVIDIA NIM API connection and try again."
-    
+            print(f"Error parsing focus areas: {e}")
+            return []
+
+    def detect_market_correction(self, research_data):
+        """Detect if market is in correction phase or significant movement."""
+        moves = research_data.get('moves', [])
+
+        if not moves:
+            return False, ""
+
+        # Count significant movements (>3% or <-3%)
+        significant_moves = [m for m in moves if abs(m.get('change', 0)) >= 3.0]
+        negative_moves = [m for m in moves if m.get('change', 0) <= -2.0]
+        positive_moves = [m for m in moves if m.get('change', 0) >= 2.0]
+
+        # Correction: More than 30% of stocks down >2%
+        if len(moves) > 0 and len(negative_moves) / len(moves) >= 0.3:
+            return True, f"Market correction detected: {len(negative_moves)}/{len(moves)} stocks down >2%"
+
+        # Strong uptrend: More than 40% of stocks up >2%
+        if len(moves) > 0 and len(positive_moves) / len(moves) >= 0.4:
+            return True, f"Strong uptrend detected: {len(positive_moves)}/{len(moves)} stocks up >2%"
+
+        # High volatility: More than 25% significant moves
+        if len(moves) > 0 and len(significant_moves) / len(moves) >= 0.25:
+            return True, f"High volatility detected: {len(significant_moves)}/{len(moves)} stocks with >3% moves"
+
+        return False, "Normal market conditions"
+
     def _build_prompt(self, data):
         moves_str = "\n".join([f"- {m['symbol']}: {m['change']}% at ${m['price']}" for m in data['moves']])
         news_str = "\n".join([f"- {n['headline']} ({n['source']}) | Link: {n['link']}" for n in data['local_news'] + data['global_news']])
@@ -161,12 +254,18 @@ Provide a 3-part intelligence report based on the provided data:
 """
         return prompt
     
-    def _build_india_prompt(self, data):
+    def _build_india_prompt(self, data, dynamic_focus_areas=None):
         moves_str = "\n".join([f"- {m['symbol']}: {m['change']}% at ${m['price']}" for m in data['moves']])
         recent_news_str = "\n".join([f"- [{n['headline']}]({n['link']}) ({n['source']})" for n in data.get('recent_news', [])])
         focus_str = "\n".join([f"- [{n['headline']}]({n['link']}) ({n['source']})" for n in data.get('focus_news', [])])
         commodities_str = "\n".join([f"- [{n['headline']}]({n['link']}) ({n['source']})" for n in data.get('commodities_news', [])])
-        
+
+        # Use dynamic focus areas if provided, otherwise fall back to config
+        if dynamic_focus_areas and len(dynamic_focus_areas) > 0:
+            focus_keywords = ", ".join([f"{fa['keyword']} (Priority: {fa.get('priority', 5)})" for fa in dynamic_focus_areas])
+        else:
+            focus_keywords = FOCUS_KEYWORDS
+
         prompt = f"""
 You are the 'Market Pulse' India Market Analyst. Think like an experienced human trader and analyst who has studied markets for 20+ years. Your goal is to help humans make BETTER decisions, not just report data.
 
@@ -178,13 +277,13 @@ Provide a structured India market report that helps investors make informed deci
    - **Analysis**: Why this matters and what it signals (e.g., "This can trigger price spikes in next quarter")
    - **Related Stocks**: Specific stocks that will be impacted (e.g., "OIL, ONGC, RELIANCE")
    - **Action**: Buy/Sell/Hold with reasoning
-   
+
    Example format:
    - **Surge in oil imports**: This can trigger price spikes in next quarter as well. Related stocks: OIL, ONGC, RELIANCE. Action: Consider long positions on oil stocks.
    - **IT industries Q4 results**: Negative signals for service companies due to AI boom. Related stocks: TCS, INFY, WIPRO. Action: Reduce exposure to traditional IT services.
 
 2. **Market Trends**: Higher-level market psychology and sentiment analysis
-3. **Focus Area Analysis ({FOCUS_KEYWORDS})**: Deep analysis of focus sectors with opportunities and risks
+3. **Focus Area Analysis ({focus_keywords})**: Deep analysis of focus sectors with opportunities and risks. Pay special attention to high-priority focus areas.
 4. **Commodities & Macro**: How gold/silver movements impact markets
 5. **Pattern Recognition**: Unusual patterns or correlations
 
@@ -220,11 +319,17 @@ Provide a structured India market report that helps investors make informed deci
 """
         return prompt
     
-    def _build_us_prompt(self, data):
+    def _build_us_prompt(self, data, dynamic_focus_areas=None):
         moves_str = "\n".join([f"- {m['symbol']}: {m['change']}% at ${m['price']}" for m in data['moves']])
         global_news_str = "\n".join([f"- [{n['headline']}]({n['link']}) ({n['source']})" for n in data.get('global_news', [])])
         focus_str = "\n".join([f"- [{n['headline']}]({n['link']}) ({n['source']})" for n in data.get('focus_news', [])])
-        
+
+        # Use dynamic focus areas if provided, otherwise fall back to config
+        if dynamic_focus_areas and len(dynamic_focus_areas) > 0:
+            focus_keywords = ", ".join([f"{fa['keyword']} (Priority: {fa.get('priority', 5)})" for fa in dynamic_focus_areas])
+        else:
+            focus_keywords = FOCUS_KEYWORDS
+
         prompt = f"""
 You are the 'Market Pulse' US/International Market Analyst. Think like an experienced human trader and analyst who has studied markets for 20+ years. Your goal is to help humans make BETTER decisions, not just report data.
 
@@ -236,13 +341,13 @@ Provide a structured US market report that helps investors make informed decisio
    - **Analysis**: Why this matters and what it signals (e.g., "This can trigger rotation to defensive stocks")
    - **Related Stocks**: Specific stocks that will be impacted (e.g., "AAPL, MSFT, NVDA")
    - **Action**: Buy/Sell/Hold with reasoning
-   
+
    Example format:
    - **Biotech AI boom**: Raising boom in AI-driven biotech sector. Related stocks: JDH, ASIH, ASCH. Action: Consider positions in AI biotech leaders.
    - **Fed rate hike concerns**: Rising yields impacting growth stocks. Related stocks: TSLA, NVDA, AMD. Action: Reduce exposure to high-growth tech stocks temporarily.
 
 2. **Market Trends**: Higher-level market psychology and sentiment analysis
-3. **Focus Area Analysis ({FOCUS_KEYWORDS})**: Deep analysis of focus sectors with opportunities and risks
+3. **Focus Area Analysis ({focus_keywords})**: Deep analysis of focus sectors with opportunities and risks. Pay special attention to high-priority focus areas.
 4. **Global Market Analysis**: International developments and their impact on US stocks
 5. **Pattern Recognition**: Unusual patterns or correlations
 

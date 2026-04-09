@@ -4,10 +4,11 @@ from datetime import datetime, timezone, timedelta
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from .config import (
-    TELEGRAM_API_ID, TELEGRAM_API_HASH, 
+    TELEGRAM_API_ID, TELEGRAM_API_HASH,
     TELEGRAM_BOT_TOKEN, TELEGRAM_SESSION_NAME,
     TELEGRAM_ALLOWED_CHATS, EVALUATION_INTERVAL_MINS,
-    INCLUDE_INTERNATIONAL, MARKET_OPEN, MARKET_CLOSE
+    INCLUDE_INTERNATIONAL, MARKET_OPEN, MARKET_CLOSE,
+    FOCUS_KEYWORDS
 )
 from .researcher import MarketResearcher
 from .brain import AIAnalyzer
@@ -101,9 +102,63 @@ class MarketMonitor:
                 elif message.text:
                     all_new_text.append(message.text)
 
-        # 2. Daily/Periodic Market Review (Research + News)
+        # 2. Check if focus areas need reevaluation (weekly or market event-driven)
+        should_reeval = self.db.should_reevaluate_focus_areas()
+        is_market_event, market_conditions = False, ""
+
+        if not should_reeval:
+            # Check for market correction/movement that might trigger reevaluation
+            quick_data = self.researcher.collect_all_data()
+            is_market_event, market_conditions = self.analyzer.detect_market_correction(quick_data)
+            if is_market_event:
+                print(f"Market event detected: {market_conditions}")
+                should_reeval = True
+
+        dynamic_focus_areas = []
+        if should_reeval:
+            print("Reevaluating focus areas based on current market conditions...")
+            # Get current focus areas from database
+            current_focus = self.db.get_active_focus_areas()
+            current_keywords = [f['keyword'] for f in current_focus]
+
+            # Get user-defined focus areas from config
+            user_focus = FOCUS_KEYWORDS.split(',') if FOCUS_KEYWORDS else []
+
+            # Combine current and user focus areas
+            all_current_focus = list(set(current_keywords + user_focus))
+
+            # Analyze and suggest new focus areas
+            research_data = self.researcher.collect_all_data()
+            suggested_focus = self.analyzer.analyze_focus_areas(
+                research_data,
+                all_current_focus,
+                market_conditions
+            )
+
+            # Mark user-defined focus areas
+            for focus in suggested_focus:
+                if focus['keyword'] in user_focus:
+                    focus['is_user_defined'] = True
+
+            # Update database with new focus areas
+            trigger_type = "MARKET_CORRECTION" if is_market_event else "WEEKLY_REEVAL"
+            self.db.update_focus_areas(
+                suggested_focus,
+                trigger_type=trigger_type,
+                market_conditions=market_conditions,
+                reasoning=f"Reevaluated due to: {trigger_type}. Market conditions: {market_conditions}"
+            )
+
+            dynamic_focus_areas = suggested_focus
+            print(f"Updated focus areas: {[f['keyword'] for f in dynamic_focus_areas]}")
+        else:
+            # Get existing focus areas
+            dynamic_focus_areas = self.db.get_active_focus_areas()
+            print(f"Using existing focus areas: {[f['keyword'] for f in dynamic_focus_areas]}")
+
+        # 3. Daily/Periodic Market Review (Research + News)
         is_daily_summary = self.is_daily_summary_time()
-        
+
         if is_daily_summary:
             print("Daily summary time - generating comprehensive report")
             research_data = self.researcher.collect_all_data()
@@ -114,10 +169,10 @@ class MarketMonitor:
         elif INCLUDE_INTERNATIONAL:
             # Send separate India and US reports
             print("Generating separate India and US market reports")
-            
+
             # India Report
             india_data = self.researcher.collect_india_data()
-            india_analysis = self.analyzer.analyze_india_market(india_data)
+            india_analysis = self.analyzer.analyze_india_market(india_data, dynamic_focus_areas=dynamic_focus_areas)
             if india_analysis:
                 await self.send_raw_alert(india_analysis, "🇮🇳 India Market Pulse")
                 self.db.save_alert("INDIA_MARKET", "INDIA_REPORT", india_analysis)
@@ -142,7 +197,7 @@ class MarketMonitor:
             
             # US Report
             us_data = self.researcher.collect_us_data()
-            us_analysis = self.analyzer.analyze_us_market(us_data)
+            us_analysis = self.analyzer.analyze_us_market(us_data, dynamic_focus_areas=dynamic_focus_areas)
             if us_analysis:
                 await self.send_raw_alert(us_analysis, "🇺🇸 US Market Pulse")
                 self.db.save_alert("US_MARKET", "US_REPORT", us_analysis)

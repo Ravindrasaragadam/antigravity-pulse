@@ -48,12 +48,12 @@ class DatabaseManager:
         return self.client.rpc("aggregate_stale_data", {}).execute()
     
     def is_news_sent(self, headline, link):
-        """Check if news was already sent in the last 4 hours."""
+        """Check if news was already sent in the last 1 hour."""
         if not self.client: return False
         
         try:
-            four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=4)
-            response = self.client.table('sent_news').select('*').eq('headline', headline).eq('link', link).gte('sent_at', four_hours_ago.isoformat()).execute()
+            one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+            response = self.client.table('sent_news').select('*').eq('headline', headline).eq('link', link).gte('sent_at', one_hour_ago.isoformat()).execute()
             return len(response.data) > 0
         except Exception as e:
             print(f"Error checking sent news: {e}")
@@ -62,19 +62,31 @@ class DatabaseManager:
     def mark_news_sent(self, news_items):
         """Mark news items as sent to avoid duplicates."""
         if not self.client: return
-        
+
         sent_data = []
         for item in news_items:
             sent_data.append({
                 "headline": item.get('headline', '')[:500],  # Limit headline length
                 "link": item.get('link', '')[:1000]  # Limit link length
             })
-        
+
         if sent_data:
             try:
-                self.client.table('sent_news').upsert(sent_data).execute()
+                # Use on_conflict ignore to handle duplicates gracefully
+                self.client.table('sent_news').upsert(sent_data, on_conflict='ignore').execute()
             except Exception as e:
                 print(f"Error marking news as sent: {e}")
+
+    def clear_old_sent_news(self, hours=1):
+        """Clear sent_news records older than specified hours."""
+        if not self.client: return
+
+        try:
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+            result = self.client.table('sent_news').delete().lt('sent_at', cutoff_time.isoformat()).execute()
+            print(f"Cleared {len(result.data)} old sent_news records")
+        except Exception as e:
+            print(f"Error clearing old sent news: {e}")
     
     def cleanup_old_sent_news(self):
         """Remove sent_news records older than 24 hours."""
@@ -85,3 +97,82 @@ class DatabaseManager:
             self.client.table('sent_news').delete().lt('sent_at', twenty_four_hours_ago.isoformat()).execute()
         except Exception as e:
             print(f"Error cleaning up old sent news: {e}")
+
+    # Dynamic Focus Areas Management
+    def get_active_focus_areas(self):
+        """Get currently active focus areas ordered by priority."""
+        if not self.client: return []
+        
+        try:
+            response = self.client.table('focus_areas').select('*').eq('is_active', True).order('priority', desc=True).execute()
+            return response.data
+        except Exception as e:
+            print(f"Error getting focus areas: {e}")
+            return []
+
+    def update_focus_areas(self, new_focus_areas, trigger_type="MANUAL", market_conditions="", reasoning=""):
+        """Update focus areas based on market analysis.
+        
+        new_focus_areas: List of dicts with keyword, category, priority, rationale
+        """
+        if not self.client: return
+        
+        try:
+            # Get current focus areas for history
+            current = self.get_active_focus_areas()
+            previous_keywords = [f['keyword'] for f in current]
+            new_keywords = [f['keyword'] for f in new_focus_areas]
+            
+            # Record the evaluation
+            self.client.table('focus_area_evaluations').insert({
+                'previous_focus_areas': previous_keywords,
+                'new_focus_areas': new_keywords,
+                'market_conditions': market_conditions,
+                'trigger_type': trigger_type,
+                'reasoning': reasoning
+            }).execute()
+            
+            # Deactivate old focus areas that are not user-defined
+            self.client.table('focus_areas').update({'is_active': False}).eq('is_user_defined', False).execute()
+            
+            # Insert or update new focus areas
+            for area in new_focus_areas:
+                data = {
+                    'keyword': area['keyword'],
+                    'category': area.get('category', 'SECTOR'),
+                    'priority': area.get('priority', 5),
+                    'rationale': area.get('rationale', ''),
+                    'market_context': area.get('market_context', ''),
+                    'is_user_defined': area.get('is_user_defined', False),
+                    'is_active': True,
+                    'metadata': area.get('metadata', {}),
+                    'last_evaluated_at': datetime.now(timezone.utc).isoformat()
+                }
+                self.client.table('focus_areas').upsert(data, on_conflict='keyword').execute()
+            
+            print(f"Updated focus areas: {new_keywords}")
+        except Exception as e:
+            print(f"Error updating focus areas: {e}")
+
+    def should_reevaluate_focus_areas(self):
+        """Check if focus areas should be reevaluated (weekly or event-driven)."""
+        if not self.client: return True  # Reevaluate if no database
+        
+        try:
+            # Check last evaluation
+            response = self.client.table('focus_area_evaluations').select('evaluated_at').order('evaluated_at', desc=True).limit(1).execute()
+            
+            if not response.data:
+                return True  # Never evaluated, do it now
+            
+            last_eval = datetime.fromisoformat(response.data[0]['evaluated_at'].replace('Z', '+00:00'))
+            now = datetime.now(timezone.utc)
+            
+            # Reevaluate if more than 7 days old
+            if (now - last_eval).days >= 7:
+                return True
+            
+            return False
+        except Exception as e:
+            print(f"Error checking focus area reevaluation: {e}")
+            return True  # Default to reevaluating on error
