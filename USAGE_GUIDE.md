@@ -69,14 +69,23 @@ Send any **screenshot of a chart** to your monitored Telegram channel. The AI wi
 
 ## 🌐 4. Hosting & Deployment (Zero Cost)
 
-### GitHub Secrets Setup (Required for CI/CD)
-To fix workflow failures, you **must** add these secrets to your GitHub repository:
+### GitHub Secrets Setup (Required for 100% Free Scanner)
+To make your scanner run for free inside GitHub Actions, you **must** add these secrets:
 1. Go to your repo on GitHub -> **Settings** -> **Secrets and variables** -> **Actions**.
 2. Click **New repository secret** and add:
-   - `RENDER_DEPLOY_HOOK`: Your Render "Deploy Hook" URL (found in Render dashboard -> Settings).
-   - `VERCEL_TOKEN`: Your Vercel Personal Access Token.
-   - `VERCEL_ORG_ID`: Your Vercel Team/User ID.
-   - `VERCEL_PROJECT_ID`: Your Vercel Project ID.
+   - `TELEGRAM_API_ID` & `TELEGRAM_API_HASH`
+   - `TELEGRAM_BOT_TOKEN` & `TELEGRAM_ALERT_CHAT_ID`
+   - `TELEGRAM_SESSION_NAME`: Set this to `session`.
+   - `TELEGRAM_ALLOWED_CHATS`: The ID of your source channel (e.g., `-100...`).
+   - `NVIDIA_NIM_API_KEY`
+   - `SUPABASE_URL` & `SUPABASE_KEY`
+   - `WATCHLIST_SYMBOLS`: (e.g., `CRSP,SMR,NVDA,GC=F`)
+   - `FOCUS_KEYWORDS`: (e.g., `Synbio, AI, Gold`)
+
+### 🚀 Usage: The "Serverless" Advantage
+- **Automatic**: Every 30 minutes, GitHub will wake up your scanner.
+- **Manual**: Go to the **Actions** tab in GitHub, select **Market Pulse Scanner**, and click **Run workflow** for an instant mid-day scan.
+- **High Volume**: The scanner now fetches *all* messages since the last run, so you never miss a single update in a busy channel.
 
 ### Detailed Credential Collection Guide
 

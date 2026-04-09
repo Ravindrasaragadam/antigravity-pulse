@@ -1,89 +1,101 @@
 import asyncio
 import os
 from telethon import TelegramClient, events
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from .config import (
-    TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_SESSION_NAME, 
-    TELEGRAM_ALLOWED_CHATS, TELEGRAM_ALERT_CHAT_ID, TELEGRAM_BOT_TOKEN,
-    EVALUATION_INTERVAL
+    TELEGRAM_API_ID, TELEGRAM_API_HASH, 
+    TELEGRAM_BOT_TOKEN, TELEGRAM_SESSION_NAME,
+    TELEGRAM_ALLOWED_CHATS, EVALUATION_INTERVAL_MINS
 )
 from .researcher import MarketResearcher
 from .brain import AIAnalyzer
 from .database import DatabaseManager
 
-# Initialize components
-client = TelegramClient(TELEGRAM_SESSION_NAME, TELEGRAM_API_ID, TELEGRAM_API_HASH)
-bot_client = TelegramClient('bot_session', TELEGRAM_API_ID, TELEGRAM_API_HASH)
-researcher = MarketResearcher()
-analyzer = AIAnalyzer()
-db = DatabaseManager()
+class MarketMonitor:
+    def __init__(self):
+        self.client = TelegramClient(TELEGRAM_SESSION_NAME, TELEGRAM_API_ID, TELEGRAM_API_HASH)
+        self.bot_client = TelegramClient('bot_session', TELEGRAM_API_ID, TELEGRAM_API_HASH)
+        self.researcher = MarketResearcher()
+        self.analyzer = AIAnalyzer()
+        self.db = DatabaseManager()
 
-async def send_alert(message):
-    """Sends a message to the target Telegram alert channel."""
-    await bot_client.send_message(TELEGRAM_ALERT_CHAT_ID, message)
+    async def get_last_processed_id(self):
+        """Fetch the last processed message ID from Supabase."""
+        state = self.db.supabase.table('system_state').select('value').eq('key', 'last_telegram_msg_id').execute()
+        if state.data:
+            return state.data[0]['value'].get('id', 0)
+        return 0
 
-async def perform_market_review(manual=False):
-    """Periodic task to scan news and prices and send alerts if needed."""
-    msg = "Running manual market review..." if manual else "Running periodic market review..."
-    print(msg)
-    if manual:
-        await send_alert("🔍 **Manual Scan Triggered... Analyzing...**")
+    async def update_last_processed_id(self, msg_id):
+        """Save the last processed message ID to Supabase."""
+        self.db.supabase.table('system_state').upsert({
+            'key': 'last_telegram_msg_id',
+            'value': {'id': msg_id}
+        }).execute()
+
+    async def run_once(self):
+        """Single execution loop for serverless/GitHub Actions."""
+        await self.client.start()
+        await self.bot_client.start(bot_token=TELEGRAM_BOT_TOKEN)
         
-    data = researcher.collect_all_data()
-    
-    # Save raw news for aggregation later
-    if data['local_news'] or data['global_news']:
-        db.save_news(data['local_news'] + data['global_news'])
-
-    # Analyze state
-    if data['moves'] or data['local_news'] or manual:
-        analysis = analyzer.analyze_market_state(data)
+        last_id = await self.get_last_processed_id()
+        print(f"Scanning for messages newer than ID: {last_id}")
         
-        # Determine if we should alert
-        if "ALERT: True" in analysis or manual:
-            await send_alert(f"🚀 **MARKET ANALYSIS{' (MANUAL)' if manual else ''}** 🚀\n\n{analysis}")
-            # Log the alert to Supabase
-            db.save_alert("MARKET", "MULTI", analysis)
+        all_new_images = []
+        all_new_text = []
+        max_id = last_id
 
-@bot_client.on(events.NewMessage(pattern='/scan'))
-async def manual_trigger_handler(event):
-    """Manual trigger for mid-day review via bot command."""
-    await perform_market_review(manual=True)
+        # 1. Fetch ALL new messages since last run (Batch processing)
+        for chat_id in TELEGRAM_ALLOWED_CHATS:
+            async for message in self.client.iter_messages(chat_id, min_id=last_id):
+                if message.id > max_id:
+                    max_id = message.id
+                
+                if message.photo:
+                    path = await message.download_media(file='downloads/')
+                    all_new_images.append(path)
+                elif message.text:
+                    all_new_text.append(message.text)
 
-@client.on(events.NewMessage(chats=TELEGRAM_ALLOWED_CHATS))
-async def telegram_handler(event):
-    """Handles incoming images and messages from monitored channels."""
-    if event.message.media:
-        print("Image detected! Downloading for analysis...")
-        path = await event.client.download_media(event.message, file='downloads/')
+        print(f"Found {len(all_new_images)} images and {len(all_new_text)} news snippets.")
+
+        # 2. Daily/Periodic Market Review (Research + News)
+        # We aggregate all new text into the research context
+        extended_news = all_new_text[:50] # Top 50 newest to avoid context overflow
+        market_stats, news_headlines = self.researcher.get_market_snapshot()
         
-        # Immediate research and analysis
-        data = researcher.collect_all_data()
-        analysis = analyzer.analyze_market_state(data, image_path=path)
-        
-        # Send result back via Bot
-        await send_alert(f"📊 **CHART ANALYSIS** 📊\n\n{analysis}")
-        
-        # Cleanup
-        if os.path.exists(path):
-            os.remove(path)
+        # 3. Analyze Images (Technical Analysis)
+        for img_path in all_new_images:
+            analysis = self.analyzer.analyze_chart(img_path, f"Context from channel: {news_headlines[:5]}")
+            if analysis:
+                await self.send_alert(analysis)
+                self.db.save_alert(analysis)
+            os.remove(img_path)
 
-async def main():
-    # Start bot and user sessions
-    await client.start()
-    await bot_client.start(bot_token=TELEGRAM_BOT_TOKEN)
-    
-    print("Market Pulse Monitor is LIVE.")
-    print(f"Monitoring Chats: {TELEGRAM_ALLOWED_CHATS}")
-    
-    # Setup Scheduler for 15-30min reviews
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(perform_market_review, 'interval', minutes=EVALUATION_INTERVAL)
-    scheduler.add_job(db.run_aggregation, 'cron', hour=3, minute=30) # Daily cleanup
-    scheduler.start()
+        # 4. Analyze General Sentiment (Macro)
+        full_context = f"RECENT TELEGRAM NEWS: {all_new_text[:20]}\n\nWEB NEWS: {news_headlines}"
+        general_signal = self.analyzer.analyze_sentiment(full_context)
+        if general_signal:
+            await self.send_alert(general_signal)
+            self.db.save_alert(general_signal)
 
-    # Keep running
-    await client.run_until_disconnected()
+        # 5. Save state
+        if max_id > last_id:
+            await self.update_last_processed_id(max_id)
+
+        await self.client.disconnect()
+        await self.bot_client.disconnect()
+
+    async def send_alert(self, signal):
+        """Dispatch signals to the Telegram Alert Bot."""
+        from .config import TELEGRAM_ALERT_CHAT_ID
+        msg = (
+            f"🚀 **{signal['signal']} SIGNAL: {signal['ticker']}**\n"
+            f"Confidence: {signal['confidence']}%\n\n"
+            f"📝 **Analysis**: {signal['analysis']}\n\n"
+            f"🏷 #MarketPulse #{signal['ticker']}"
+        )
+        await self.bot_client.send_message(TELEGRAM_ALERT_CHAT_ID, msg)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    monitor = MarketMonitor()
+    asyncio.run(monitor.run_once())

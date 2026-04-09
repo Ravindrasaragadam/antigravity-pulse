@@ -67,3 +67,15 @@ BEGIN
     DELETE FROM market_news WHERE created_at < NOW() - INTERVAL '30 days';
 END;
 $$ LANGUAGE plpgsql;
+
+-- 6. System State (For tracking serverless progress)
+CREATE TABLE IF NOT EXISTS system_state (
+    key TEXT PRIMARY KEY,
+    value JSONB,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Initialize Telegram ID tracking
+INSERT INTO system_state (key, value)
+VALUES ('last_telegram_msg_id', '{"id": 0}')
+ON CONFLICT (key) DO NOTHING;
