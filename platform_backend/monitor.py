@@ -12,11 +12,18 @@ from .database import DatabaseManager
 
 class MarketMonitor:
     def __init__(self):
-        self.client = TelegramClient(TELEGRAM_SESSION_NAME, TELEGRAM_API_ID, TELEGRAM_API_HASH)
-        self.bot_client = TelegramClient('bot_session', TELEGRAM_API_ID, TELEGRAM_API_HASH)
         self.researcher = MarketResearcher()
         self.analyzer = AIAnalyzer()
         self.db = DatabaseManager()
+        self.client = None
+        self.bot_client = None
+
+    async def _init_clients(self):
+        """Initialize clients within the active async loop."""
+        if not self.client:
+            self.client = TelegramClient(TELEGRAM_SESSION_NAME, TELEGRAM_API_ID, TELEGRAM_API_HASH)
+        if not self.bot_client:
+            self.bot_client = TelegramClient('bot_session', TELEGRAM_API_ID, TELEGRAM_API_HASH)
 
     async def get_last_processed_id(self):
         """Fetch the last processed message ID from Supabase."""
@@ -34,6 +41,7 @@ class MarketMonitor:
 
     async def run_once(self):
         """Single execution loop for serverless/GitHub Actions."""
+        await self._init_clients()
         await self.client.start()
         await self.bot_client.start(bot_token=TELEGRAM_BOT_TOKEN)
         
