@@ -116,9 +116,16 @@ To make your scanner run for free inside GitHub Actions, you **must** add these 
 4. Add all variables from your `.env` to the Render **Environment Variables** section.
 
 ### Frontend: Vercel (Free Tier)
-1. Import your repo into [Vercel](https://vercel.com).
-2. Set the root directory to `platform_dashboard`.
-3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` to Vercel's Environment Variables.
+1. Go to your [Vercel Dashboard](https://vercel.com/dashboard).
+2. Click **Add New...** -> **Project**.
+3. Import your `market-pulse` repository.
+4. **Configure Project Settings**:
+   - **Framework Preset**: `Next.js`
+   - **Root Directory**: Click "Edit" and select `platform_dashboard`.
+5. **Add Environment Variables**:
+   - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase Project URL.
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase Anon Key.
+6. Click **Deploy**.
 
 ---
 
