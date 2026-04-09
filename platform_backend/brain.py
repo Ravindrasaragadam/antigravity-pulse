@@ -36,6 +36,71 @@ class AIAnalyzer:
         )
         
         return response.choices[0].message.content
+    
+    def analyze_india_market(self, india_data, image_path=None):
+        """
+        Analyzes India-specific market data with dedicated sections.
+        """
+        content = [
+            {"type": "text", "text": self._build_india_prompt(india_data)}
+        ]
+
+        if image_path:
+            base64_image = self.encode_image(image_path)
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+            })
+
+        response = self.client.chat.completions.create(
+            model=NIM_MODEL,
+            messages=[{"role": "user", "content": content}],
+            max_tokens=800,
+            temperature=0.2
+        )
+        
+        return response.choices[0].message.content
+    
+    def analyze_us_market(self, us_data, image_path=None):
+        """
+        Analyzes US/International market data.
+        """
+        content = [
+            {"type": "text", "text": self._build_us_prompt(us_data)}
+        ]
+
+        if image_path:
+            base64_image = self.encode_image(image_path)
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+            })
+
+        response = self.client.chat.completions.create(
+            model=NIM_MODEL,
+            messages=[{"role": "user", "content": content}],
+            max_tokens=800,
+            temperature=0.2
+        )
+        
+        return response.choices[0].message.content
+    
+    def analyze_daily_summary(self, research_data):
+        """
+        Creates a comprehensive daily market summary.
+        """
+        content = [
+            {"type": "text", "text": self._build_daily_summary_prompt(research_data)}
+        ]
+
+        response = self.client.chat.completions.create(
+            model=NIM_MODEL,
+            messages=[{"role": "user", "content": content}],
+            max_tokens=1000,
+            temperature=0.2
+        )
+        
+        return response.choices[0].message.content
 
     def _build_prompt(self, data):
         moves_str = "\n".join([f"- {m['symbol']}: {m['change']}% at ${m['price']}" for m in data['moves']])
@@ -67,5 +132,122 @@ Provide a 3-part intelligence report based on the provided data:
 
 ### Broad Market News:
 {news_str if news_str else "No major news headlines."}
+"""
+        return prompt
+    
+    def _build_india_prompt(self, data):
+        moves_str = "\n".join([f"- {m['symbol']}: {m['change']}% at ${m['price']}" for m in data['moves']])
+        recent_news_str = "\n".join([f"- {n['headline']} ({n['source']}) | Link: {n['link']}" for n in data.get('recent_news', [])])
+        focus_str = "\n".join([f"- {n['headline']} ({n['source']}) | Link: {n['link']}" for n in data.get('focus_news', [])])
+        commodities_str = "\n".join([f"- {n['headline']} ({n['source']}) | Link: {n['link']}" for n in data.get('commodities_news', [])])
+        
+        prompt = f"""
+You are the 'Market Pulse' India Market Analyst. Your mission is to provide a focused India market report.
+
+### MISSION:
+Provide a structured India market report with the following sections:
+
+1. **Top Highlights (Last 30 Minutes)**: 3-4 bullet points summarizing key market events from the last 30 minutes
+2. **Focus Area News**: Analysis of news related to {FOCUS_KEYWORDS}
+3. **Commodities Update**: Gold and silver price movements and news
+4. **Market Sentiments**: Overall bullish/bearish sentiment with reasoning
+5. **Special/Interesting Patterns**: Identify any unusual patterns or trends from the data
+6. **Watchlist Updates**: Brief updates on watchlist stocks
+
+### IMPORTANT:
+- Include source URLs prominently for all news items
+- Analyze patterns and trends from the context, not just report headlines
+- Look for unusual market behavior or interesting correlations
+- Format with clear section headers and bullet points
+- Keep each section concise but informative
+
+---
+
+### Recent News (Last 30 Mins):
+{recent_news_str if recent_news_str else "No recent news in last 30 minutes."}
+
+### Focus Area News:
+{focus_str if focus_str else "No focus area news found."}
+
+### Commodities News:
+{commodities_str if commodities_str else "No commodities news available."}
+
+### Price Movements:
+{moves_str if moves_str else "No significant moves detected."}
+"""
+        return prompt
+    
+    def _build_us_prompt(self, data):
+        moves_str = "\n".join([f"- {m['symbol']}: {m['change']}% at ${m['price']}" for m in data['moves']])
+        global_news_str = "\n".join([f"- {n['headline']} ({n['source']}) | Link: {n['link']}" for n in data.get('global_news', [])])
+        focus_str = "\n".join([f"- {n['headline']} ({n['source']}) | Link: {n['link']}" for n in data.get('focus_news', [])])
+        
+        prompt = f"""
+You are the 'Market Pulse' US/International Market Analyst. Your mission is to provide a focused international market report.
+
+### MISSION:
+Provide a structured US/International market report with the following sections:
+
+1. **US Market Overview**: Key US market movements and trends
+2. **International Highlights**: Major global market events
+3. **Focus Sector Analysis**: Analysis of {FOCUS_KEYWORDS} in international context
+4. **Market Sentiments**: Overall bullish/bearish sentiment with reasoning
+5. **Special Patterns**: Identify any unusual patterns or trends
+6. **Watchlist Updates**: Brief updates on international watchlist stocks
+
+### IMPORTANT:
+- Include source URLs prominently for all news items
+- Analyze patterns and trends from the context
+- Look for unusual market behavior or interesting correlations
+- Format with clear section headers and bullet points
+
+---
+
+### Global News:
+{global_news_str if global_news_str else "No global news available."}
+
+### Focus Area News:
+{focus_str if focus_str else "No focus area news found."}
+
+### Price Movements:
+{moves_str if moves_str else "No significant moves detected."}
+"""
+        return prompt
+    
+    def _build_daily_summary_prompt(self, data):
+        moves_str = "\n".join([f"- {m['symbol']}: {m['change']}% at ${m['price']}" for m in data['moves']])
+        news_str = "\n".join([f"- {n['headline']} ({n['source']}) | Link: {n['link']}" for n in data['local_news'] + data['global_news']])
+        focus_str = "\n".join([f"- {n['headline']} ({n['source']}) | Link: {n['link']}" for n in data.get('focus_news', [])])
+        
+        prompt = f"""
+You are the 'Market Pulse' Daily Summary Analyst. Your mission is to provide a comprehensive end-of-day market summary.
+
+### MISSION:
+Provide a comprehensive daily market summary covering:
+
+1. **Day's Top Stories**: 5-7 most important market events of the day
+2. **Market Performance**: Overall market performance summary
+3. **Sector Analysis**: Deep dive into {FOCUS_KEYWORDS} performance
+4. **Key Movers**: Best and worst performers from watchlist
+5. **Trends and Patterns**: Important trends or patterns observed today
+6. **Tomorrow's Outlook**: What to watch for tomorrow
+
+### IMPORTANT:
+- Include source URLs prominently
+- Provide actionable insights
+- Highlight any significant changes or breaking patterns
+- Format with clear section headers
+- Be comprehensive but concise
+
+---
+
+### All Market News:
+{news_str if news_str else "No major news headlines."}
+
+### Focus Area News:
+{focus_str if focus_str else "No focus area news found."}
+
+### Price Movements:
+{moves_str if moves_str else "No significant moves detected."}
 """
         return prompt

@@ -1,5 +1,6 @@
 from supabase import create_client, Client
 from .config import SUPABASE_URL, SUPABASE_KEY
+from datetime import datetime, timedelta, timezone
 
 class DatabaseManager:
     def __init__(self):
@@ -41,3 +42,42 @@ class DatabaseManager:
         if not self.client: return
         # Using RPC to call the stored procedure defined in schema.sql
         return self.client.rpc("aggregate_stale_data", {}).execute()
+    
+    def is_news_sent(self, headline, link):
+        """Check if news was already sent in the last 4 hours."""
+        if not self.client: return False
+        
+        try:
+            four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=4)
+            response = self.client.table('sent_news').select('*').eq('headline', headline).eq('link', link).gte('sent_at', four_hours_ago.isoformat()).execute()
+            return len(response.data) > 0
+        except Exception as e:
+            print(f"Error checking sent news: {e}")
+            return False
+    
+    def mark_news_sent(self, news_items):
+        """Mark news items as sent to avoid duplicates."""
+        if not self.client: return
+        
+        sent_data = []
+        for item in news_items:
+            sent_data.append({
+                "headline": item.get('headline', '')[:500],  # Limit headline length
+                "link": item.get('link', '')[:1000]  # Limit link length
+            })
+        
+        if sent_data:
+            try:
+                self.client.table('sent_news').upsert(sent_data).execute()
+            except Exception as e:
+                print(f"Error marking news as sent: {e}")
+    
+    def cleanup_old_sent_news(self):
+        """Remove sent_news records older than 24 hours."""
+        if not self.client: return
+        
+        try:
+            twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
+            self.client.table('sent_news').delete().lt('sent_at', twenty_four_hours_ago.isoformat()).execute()
+        except Exception as e:
+            print(f"Error cleaning up old sent news: {e}")

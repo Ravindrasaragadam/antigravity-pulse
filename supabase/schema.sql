@@ -75,6 +75,19 @@ CREATE TABLE IF NOT EXISTS system_state (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 7. Sent News (For tracking already-sent news to avoid duplicates)
+CREATE TABLE IF NOT EXISTS sent_news (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    headline TEXT NOT NULL,
+    link TEXT NOT NULL,
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(headline, link)
+);
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_sent_news_headline ON sent_news(headline);
+CREATE INDEX IF NOT EXISTS idx_sent_news_sent_at ON sent_news(sent_at);
+
 -- Initialize Telegram ID tracking
 INSERT INTO system_state (key, value)
 VALUES ('last_telegram_msg_id', '{"id": 0}')
