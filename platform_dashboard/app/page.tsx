@@ -26,7 +26,13 @@ export default function Dashboard() {
           .limit(50);
         
         if (sbError) throw sbError;
-        setAlerts(data || []);
+        // Filter to show only relevant market reports
+        const relevantAlerts = (data || []).filter(alert => 
+          alert.symbol === 'INDIA_MARKET' || 
+          alert.symbol === 'US_MARKET' ||
+          alert.symbol === 'DAILY_SUMMARY'
+        );
+        setAlerts(relevantAlerts);
       } catch (err: any) {
         console.error("Dashboard Fetch Error:", err);
         setError(err.message || "Failed to connect to Supabase. Check your environment variables.");
