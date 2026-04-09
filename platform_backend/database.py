@@ -3,11 +3,17 @@ from .config import SUPABASE_URL, SUPABASE_KEY
 
 class DatabaseManager:
     def __init__(self):
-        if not SUPABASE_URL or not SUPABASE_KEY:
+        # Basic validation to avoid "Invalid API key" crashes
+        is_placeholder = "YOUR_" in SUPABASE_KEY or "anon" in SUPABASE_KEY.lower() == False and len(SUPABASE_KEY) < 20
+        if not SUPABASE_URL or not SUPABASE_KEY or "YOUR_" in SUPABASE_KEY:
             self.client = None
-            print("Warning: Supabase credentials missing. Data persistence disabled.")
+            print("Warning: Supabase credentials missing or using placeholders. Data persistence disabled.")
         else:
-            self.client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+            try:
+                self.client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+            except Exception as e:
+                self.client = None
+                print(f"Error: Failed to initialize Supabase client: {e}")
 
     def save_alert(self, symbol, signal, reasoning, strength=None, metadata=None):
         if not self.client: return
