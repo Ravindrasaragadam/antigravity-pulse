@@ -90,8 +90,10 @@ export async function GET() {
       console.error('Alert stocks fetch error:', alertError);
     }
 
-    // Get watchlist with stock details
-    const { data: watchlistData, error: watchlistError } = await supabase
+    // Get watchlist with stock details (try user_watchlist first, then watchlist as fallback)
+    let watchlistData: any[] = [];
+    
+    const { data: userWatchlistData, error: userWatchlistError } = await supabase
       .from('user_watchlist')
       .select(`
         stock_symbol,
@@ -110,12 +112,26 @@ export async function GET() {
       .eq('is_active', true)
       .order('priority', { ascending: false });
 
-    if (watchlistError) {
-      console.error('Watchlist fetch error:', watchlistError);
-      return NextResponse.json(
-        { error: 'Failed to fetch watchlist' },
-        { status: 500 }
-      );
+    if (userWatchlistData && userWatchlistData.length > 0) {
+      watchlistData = userWatchlistData;
+    } else {
+      // Fallback to old watchlist table
+      const { data: oldWatchlistData, error: oldWatchlistError } = await supabase
+        .from('watchlist')
+        .select(`
+          symbol as stock_symbol,
+          priority,
+          notes,
+          created_at as added_at
+        `)
+        .order('priority', { ascending: false });
+      
+      if (oldWatchlistData) {
+        watchlistData = oldWatchlistData.map((item: any) => ({
+          ...item,
+          stock_symbols: []
+        }));
+      }
     }
 
     // Combine watchlist symbols with alert-triggered symbols

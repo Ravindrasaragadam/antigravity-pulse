@@ -11,6 +11,7 @@ import StockAlerts from "@/components/StockAlerts";
 import StockSearch from "@/components/StockSearch";
 import LiveNews from "@/components/LiveNews";
 import FocusAreaNews from "@/components/FocusAreaNews";
+import EnhancedWatchlist from "@/components/EnhancedWatchlist";
 
 interface WatchlistStock {
   symbol: string;
@@ -272,53 +273,14 @@ export default function Dashboard() {
         <TradingViewWidget />
       </div>
 
-      {/* Stock Grid - Main Feature */}
+      {/* Enhanced Watchlist - Main Feature */}
       <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-semibold flex items-center gap-2">
-            📈 {market === 'INDIA' ? '🇮🇳 Indian Stocks' : '🇺🇸 US Stocks'}
-            <span className="text-sm font-normal text-slate-400">
-              ({market === 'INDIA' ? stats.india : stats.us} stocks)
-            </span>
-            <span className="text-xs font-normal text-slate-500 ml-2">
-              (Total: {stats.total})
-            </span>
-          </h2>
-          {watchlist.length === 0 && (
-            <p className="text-sm text-slate-400">
-              Search and add stocks to build your watchlist
-            </p>
-          )}
-        </div>
-        
-        {displayStocks.length === 0 ? (
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-xl text-center">
-            <p className="text-slate-400 mb-4">
-              No {market === 'INDIA' ? 'Indian' : 'US'} stocks in your watchlist
-            </p>
-            <p className="text-sm text-slate-500">
-              Use the search above to add {market === 'INDIA' ? 'Indian' : 'US'} stocks
-            </p>
-          </div>
-        ) : (
-          <StockGrid stocks={displayStocks} />
-        )}
+        <EnhancedWatchlist market={market} />
       </div>
 
       {/* Stock-Level Alerts */}
       <div className="mb-8">
         <StockAlerts market={market} />
-      </div>
-
-      {/* Live News Section */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-semibold">📰 Live News</h2>
-          <span className="text-xs text-slate-500">
-            {liveNews.length > 0 && `Last updated: ${new Date().toLocaleTimeString()}`}
-          </span>
-        </div>
-        <LiveNews news={liveNews} />
       </div>
 
       {/* Focus Area News */}
@@ -334,6 +296,17 @@ export default function Dashboard() {
       {/* AI Market Summary */}
       <div className="mb-8">
         <AIMarketSummary market={market} />
+      </div>
+
+      {/* Live News Section - Moved to Bottom */}
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-semibold">📰 Live News</h2>
+          <span className="text-xs text-slate-500">
+            {liveNews.length > 0 && `Last updated: ${new Date().toLocaleTimeString()}`}
+          </span>
+        </div>
+        <LiveNews news={liveNews} />
       </div>
 
       {/* Commodities Corner Widget - Fixed Position */}
