@@ -23,6 +23,8 @@ interface StockAlert {
   signal_strength: number;
   metadata: any;
   fundamentals: any;
+  stop_loss?: number;
+  target?: number;
 }
 
 interface HistoricalData {

@@ -91,9 +91,9 @@ export async function GET() {
 
       return {
         symbol: symbol,
-        name: stockInfo?.name || watchlistItem?.stock_symbols?.name,
-        sector: stockInfo?.sector || watchlistItem?.stock_symbols?.sector,
-        marketCapCategory: stockInfo?.market_cap_category || watchlistItem?.stock_symbols?.market_cap_category,
+        name: stockInfo?.name || watchlistItem?.stock_symbols?.[0]?.name,
+        sector: stockInfo?.sector || watchlistItem?.stock_symbols?.[0]?.sector,
+        marketCapCategory: stockInfo?.market_cap_category || watchlistItem?.stock_symbols?.[0]?.market_cap_category,
         priority: watchlistItem?.priority || (isFromAlert ? 5 : 0), // High priority for alert stocks
         notes: watchlistItem?.notes || (isFromAlert ? 'Alert triggered - added automatically' : ''),
         addedAt: watchlistItem?.added_at,
