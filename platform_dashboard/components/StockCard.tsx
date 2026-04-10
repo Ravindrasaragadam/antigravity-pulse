@@ -117,6 +117,9 @@ export default function StockCard({
               </span>
             )}
           </div>
+          <Link href={`/stock/${symbol}`} className="block">
+            <h3 className="text-xl font-bold text-white hover:text-amber-400 transition-colors duration-200">{symbol}</h3>
+          </Link>
           <p className={`text-2xl font-bold ${changeColor}`}>
             ${displayPrice.toFixed(2)}
           </p>

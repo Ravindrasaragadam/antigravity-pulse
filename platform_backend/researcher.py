@@ -60,6 +60,8 @@ class MarketResearcher:
                     # For Indian stocks, try NSE, BSE, then raw
                     suffixes = ['.NS', '.BO', '']
                     print(f"Detected Indian stock: {symbol}")
+                # Try different exchange suffixes
+                suffixes = ['.NS', '.BO', '']  # NSE, BSE, raw
                 
                 for suffix in suffixes:
                     try:
