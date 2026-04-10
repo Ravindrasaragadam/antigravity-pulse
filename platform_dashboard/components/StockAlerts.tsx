@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import LoadingThinking from "./LoadingThinking";
 
 interface StockAlert {
   id: string;
@@ -90,6 +91,51 @@ export default function StockAlerts({ market }: StockAlertsProps) {
     }
   };
 
+  // Parse reasoning text and convert stock symbols to clickable links
+  const renderReasoningWithLinks = (reasoning: string) => {
+    if (!reasoning) return reasoning;
+    
+    // Pattern to match stock symbols (uppercase 3-10 chars, optionally with .NS/.US)
+    const stockPattern = /\b([A-Z]{3,10}(?:\.(?:NS|US))?|[A-Z]{3,10})\b/g;
+    
+    const parts: (string | ReactElement)[] = [];
+    let lastIndex = 0;
+    let match;
+    
+    // Reset regex
+    stockPattern.lastIndex = 0;
+    
+    while ((match = stockPattern.exec(reasoning)) !== null) {
+      const symbol = match[0];
+      const index = match.index;
+      
+      // Add text before the match
+      if (index > lastIndex) {
+        parts.push(reasoning.slice(lastIndex, index));
+      }
+      
+      // Add the linked symbol
+      parts.push(
+        <Link
+          key={`${symbol}-${index}`}
+          href={`/stock/${symbol}`}
+          className="text-cyan-400 hover:text-cyan-300 underline transition-colors"
+        >
+          {symbol}
+        </Link>
+      );
+      
+      lastIndex = index + symbol.length;
+    }
+    
+    // Add remaining text
+    if (lastIndex < reasoning.length) {
+      parts.push(reasoning.slice(lastIndex));
+    }
+    
+    return parts.length > 0 ? <>{parts}</> : reasoning;
+  };
+
   if (loading) {
     return (
       <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
@@ -99,10 +145,8 @@ export default function StockAlerts({ market }: StockAlertsProps) {
             {market === "INDIA" ? "India" : "US"}
           </span>
         </h2>
-        <div className="animate-pulse space-y-3">
-          <div className="h-4 bg-slate-800 rounded w-3/4" />
-          <div className="h-4 bg-slate-800 rounded w-1/2" />
-          <div className="h-4 bg-slate-800 rounded w-2/3" />
+        <div className="py-6">
+          <LoadingThinking message="Loading alerts" size="md" />
         </div>
       </div>
     );
@@ -159,9 +203,9 @@ export default function StockAlerts({ market }: StockAlertsProps) {
               </div>
             </div>
 
-            {/* Reason */}
+            {/* Reason with Clickable Stock Symbols */}
             <p className="text-slate-300 text-sm mb-3 leading-relaxed">
-              {alert.reasoning}
+              {renderReasoningWithLinks(alert.reasoning)}
             </p>
 
             {/* Focus Area Tags */}
