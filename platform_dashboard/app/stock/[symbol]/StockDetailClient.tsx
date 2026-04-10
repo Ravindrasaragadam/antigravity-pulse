@@ -56,7 +56,9 @@ interface NewsItem {
   source: string;
   published: string;
   sentiment: string;
-  mentioned_stocks: string[];
+  ai_signal?: string;
+  ai_confidence?: number;
+  summary?: string;
 }
 
 interface StockInfo {
@@ -236,18 +238,28 @@ export default function StockDetailClient() {
     }
   }, [symbol, fetchSavedFundamentals]);
 
-  // Fetch news
+  // Fetch stock-specific news
   const fetchNews = useCallback(async () => {
     try {
-      const response = await fetch(`/api/news/live?market=${detectMarket(symbol).toLowerCase()}`);
+      // Try cached stock news first
+      const cacheResponse = await fetch(`/api/stocks/news?symbol=${symbol}`);
+      
+      if (cacheResponse.ok) {
+        const data = await cacheResponse.json();
+        setNews(data.news);
+        return;
+      }
+
+      // If no cache, fetch fresh news
+      const response = await fetch('/api/stocks/news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol }),
+      });
+
       if (response.ok) {
         const data = await response.json();
-        // Filter news mentioning this stock
-        const filteredNews = data.news.filter((item: NewsItem) => 
-          item.title.toLowerCase().includes(symbol.toLowerCase()) ||
-          symbol.toLowerCase().split('.')[0].includes(item.title.toLowerCase().split(' ')[0])
-        ).slice(0, 10);
-        setNews(filteredNews);
+        setNews(data.news);
       }
     } catch (error) {
       console.error('News fetch error:', error);
@@ -504,9 +516,12 @@ export default function StockDetailClient() {
                     className="block p-3 bg-slate-800/50 rounded-lg hover:bg-slate-800 transition-colors"
                   >
                     <div className="flex justify-between items-start gap-2">
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm font-medium text-slate-200">{item.title}</p>
-                        <div className="flex items-center gap-2 mt-1">
+                        {item.summary && (
+                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">{item.summary}</p>
+                        )}
+                        <div className="flex items-center gap-2 mt-2">
                           <span className="text-xs text-slate-500">{item.source}</span>
                           <span className={`text-xs px-2 py-0.5 rounded ${
                             item.sentiment === 'positive' ? 'bg-emerald-500/20 text-emerald-400' :
@@ -515,6 +530,15 @@ export default function StockDetailClient() {
                           }`}>
                             {item.sentiment || 'neutral'}
                           </span>
+                          {item.ai_signal && (
+                            <span className={`text-xs px-2 py-0.5 rounded ${
+                              item.ai_signal === 'BUY' ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50' :
+                              item.ai_signal === 'SELL' ? 'bg-rose-500/30 text-rose-300 border border-rose-500/50' :
+                              'bg-amber-500/30 text-amber-300 border border-amber-500/50'
+                            }`}>
+                              🤖 {item.ai_signal} {item.ai_confidence ? `(${item.ai_confidence}%)` : ''}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <svg className="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
