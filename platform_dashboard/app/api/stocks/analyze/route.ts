@@ -4,10 +4,15 @@ import { supabase } from '@/lib/supabase';
 const NVIDIA_API_KEY = process.env.NVIDIA_NIM_API_KEY || '';
 const CACHE_TTL_HOURS = 3;
 
+interface Highlight {
+  text: string;
+  related_stocks: string[];
+}
+
 interface AIAnalysis {
   signal: 'BUY' | 'SELL' | 'NEUTRAL';
   confidence: number;
-  highlights: string[];
+  highlights: (string | Highlight)[];
   sentiment: string;
   investment_horizon: 'SHORT_TERM' | 'LONG_TERM';
   stop_loss: number;
@@ -167,7 +172,11 @@ Provide comprehensive analysis in JSON format:
 {
   "signal": "BUY" | "SELL" | "NEUTRAL",
   "confidence": 0-100,
-  "highlights": ["3-5 key points about the stock"],
+  "highlights": [
+    {"text": "Key point 1 about the stock", "related_stocks": ["RELATED1", "RELATED2"]},
+    {"text": "Key point 2 about the stock", "related_stocks": ["RELATED3"]},
+    {"text": "Key point 3 about the stock", "related_stocks": []}
+  ],
   "sentiment": "bullish/bearish/neutral with explanation",
   "investment_horizon": "SHORT_TERM" | "LONG_TERM",
   "stop_loss": price number,
@@ -189,6 +198,11 @@ Provide comprehensive analysis in JSON format:
   "recent_news_summary": "summary of recent news sentiment",
   "related_stocks": ["4-5 related stocks"]
 }
+
+IMPORTANT: For each highlight, include 1-2 related stock symbols that are relevant to that specific point.
+For example, if highlight mentions "EV adoption", include related EV stocks like ["TSLA", "NIO"].
+If highlight mentions "AI chips", include ["NVDA", "AMD"].
+For Indian stocks, use .NS suffix (e.g., ["RELIANCE.NS", "TCS.NS"]).
 
 Be specific and data-driven. Include realistic numbers.`;
 

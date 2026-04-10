@@ -18,10 +18,15 @@ interface PriceData {
   timestamp: string;
 }
 
+interface Highlight {
+  text: string;
+  related_stocks: string[];
+}
+
 interface AIAnalysis {
   signal: 'BUY' | 'SELL' | 'NEUTRAL';
   confidence: number;
-  highlights: string[];
+  highlights: (string | Highlight)[];
   sentiment: string;
   investment_horizon: 'SHORT_TERM' | 'LONG_TERM';
   stop_loss: number;
@@ -419,15 +424,36 @@ export default function StockDetailClient() {
                   </span>
                 </div>
 
-                {/* Highlights */}
+                {/* Highlights with Clickable Related Stocks */}
                 <div className="mb-4">
                   <h3 className="text-sm font-semibold text-slate-400 mb-2">Key Highlights</h3>
-                  <ul className="space-y-1">
-                    {aiAnalysis.highlights?.map((highlight, i) => (
-                      <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                        <span className="text-amber-400">•</span> {highlight}
-                      </li>
-                    ))}
+                  <ul className="space-y-2">
+                    {aiAnalysis.highlights?.map((highlight, i) => {
+                      const highlightText = typeof highlight === 'string' ? highlight : highlight.text;
+                      const relatedStocks = typeof highlight === 'string' ? [] : highlight.related_stocks || [];
+                      
+                      return (
+                        <li key={i} className="text-sm text-slate-300">
+                          <div className="flex items-start gap-2">
+                            <span className="text-amber-400 mt-1">•</span>
+                            <span>{highlightText}</span>
+                          </div>
+                          {relatedStocks.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1 ml-4">
+                              {relatedStocks.map((stock, j) => (
+                                <Link
+                                  key={j}
+                                  href={`/stock/${stock}`}
+                                  className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-400 rounded hover:bg-cyan-500/30 transition-colors"
+                                >
+                                  {stock}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
 
