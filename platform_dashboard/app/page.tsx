@@ -10,6 +10,7 @@ import AIStockSummary from "@/components/AIStockSummary";
 import StockAlerts from "@/components/StockAlerts";
 import StockSearch from "@/components/StockSearch";
 import LiveNews from "@/components/LiveNews";
+import FocusAreaNews from "@/components/FocusAreaNews";
 
 interface WatchlistStock {
   symbol: string;
@@ -318,6 +319,11 @@ export default function Dashboard() {
           </span>
         </div>
         <LiveNews news={liveNews} />
+      </div>
+
+      {/* Focus Area News */}
+      <div className="mb-8">
+        <FocusAreaNews market={market} baseKeywords={["Synbio", "AI", "Gold", "Semiconductors"]} />
       </div>
 
       {/* AI Stock Sentiments */}
