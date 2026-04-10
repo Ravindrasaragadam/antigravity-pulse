@@ -14,17 +14,20 @@ on:
   workflow_dispatch:      # Allow manual trigger from GitHub UI
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # Opt into Node.js 24 for actions (Node 20 deprecated)
+  # GitHub deprecated Node 20 - force actions to use Node 24
+  # This eliminates deprecation warnings for actions/checkout and actions/setup-python
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: false
 
 jobs:
   run-scanner:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4  # Latest v4 supports Node 24 when forced
       
       - name: Set up Python with pip caching
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5  # Latest v5 supports Node 24 when forced
         with:
           python-version: '3.9'
           cache: 'pip'
