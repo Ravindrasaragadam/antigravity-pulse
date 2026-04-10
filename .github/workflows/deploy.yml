@@ -2,13 +2,12 @@ name: Market Pulse Scanner (Serverless)
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # Run every 30 minutes
+    - cron: '*/60 * * * *' # Run every 60 minutes
   workflow_dispatch:      # Allow manual trigger from GitHub UI
 
 jobs:
   run-scanner:
     runs-on: ubuntu-latest
-    timeout-minutes: 10   # Fail fast if stuck
     
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +25,7 @@ jobs:
           pip install -r platform_backend/requirements.txt
           
       - name: Run Market Pulse Scanner
-        timeout-minutes: 8  # Individual step timeout
+        timeout-minutes: 30  # Individual step timeout
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
