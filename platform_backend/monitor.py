@@ -8,12 +8,11 @@ from .config import (
     TELEGRAM_BOT_TOKEN, TELEGRAM_SESSION_NAME,
     TELEGRAM_ALLOWED_CHATS, EVALUATION_INTERVAL_MINS,
     INCLUDE_INTERNATIONAL, MARKET_OPEN, MARKET_CLOSE,
-    FOCUS_KEYWORDS
+    FOCUS_KEYWORDS, ENABLE_TELEGRAM_ALERTS
 )
 from .researcher import MarketResearcher
 from .brain import AIAnalyzer
 from .database import DatabaseManager
-import os
 
 class MarketMonitor:
     def __init__(self):
@@ -158,6 +157,7 @@ class MarketMonitor:
 
         # 3. Daily/Periodic Market Review (Research + News)
         is_daily_summary = self.is_daily_summary_time()
+        research_data = {}  # Initialize to prevent undefined variable
 
         if is_daily_summary:
             print("Daily summary time - generating comprehensive report")
@@ -169,6 +169,7 @@ class MarketMonitor:
         elif INCLUDE_INTERNATIONAL:
             # Send separate India and US reports
             print("Generating separate India and US market reports")
+            research_data = self.researcher.collect_all_data()  # For image analysis context
 
             # India Report
             india_data = self.researcher.collect_india_data()
@@ -190,6 +191,8 @@ class MarketMonitor:
                         reasoning=signal.get('reasoning', signal.get('reason', '')),
                         stock_symbol=signal['symbol'],
                         signal_strength=signal.get('confidence', 0.7),
+                        stop_loss=signal.get('stop_loss'),
+                        target=signal.get('target'),
                         metadata={
                             'change': signal.get('change', 0),
                             'focus_areas': signal.get('focus_areas', signal.get('tags', [])),
@@ -219,6 +222,8 @@ class MarketMonitor:
                         reasoning=signal.get('reasoning', signal.get('reason', '')),
                         stock_symbol=signal['symbol'],
                         signal_strength=signal.get('confidence', 0.7),
+                        stop_loss=signal.get('stop_loss'),
+                        target=signal.get('target'),
                         metadata={
                             'change': signal.get('change', 0),
                             'focus_areas': signal.get('focus_areas', signal.get('tags', [])),
@@ -273,7 +278,11 @@ class MarketMonitor:
 
     async def send_raw_alert(self, text, title):
         """Dispatch raw text signals with intelligent message splitting at section boundaries."""
-        from .config import TELEGRAM_ALERT_CHAT_ID
+        from .config import TELEGRAM_ALERT_CHAT_ID, ENABLE_TELEGRAM_ALERTS
+        
+        if not ENABLE_TELEGRAM_ALERTS:
+            print(f"[TELEGRAM DISABLED] Would send: {title}")
+            return
         
         # Split message if it exceeds Telegram's 4096 character limit
         # We use a safe margin of 4000 and split at section boundaries

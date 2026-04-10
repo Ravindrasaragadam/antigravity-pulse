@@ -21,6 +21,9 @@ interface StockCardProps {
     month1?: number;
     year1?: number;
   };
+  isRecommended?: boolean;
+  stopLoss?: string;
+  target?: string;
 }
 
 export default function StockCard({ 
@@ -30,7 +33,10 @@ export default function StockCard({
   signal, 
   sparklineData = [],
   fundamentals = {},
-  growth = {}
+  growth = {},
+  isRecommended = false,
+  stopLoss,
+  target
 }: StockCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [displayPrice, setDisplayPrice] = useState(0);
@@ -101,6 +107,16 @@ export default function StockCard({
       {/* Header */}
       <div className="flex justify-between items-start mb-3">
         <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Link href={`/stock/${symbol}`} className="block">
+              <h3 className="text-xl font-bold text-white hover:text-amber-400 transition-colors duration-200">{symbol}</h3>
+            </Link>
+            {isRecommended && (
+              <span className="px-2 py-0.5 bg-amber-500/20 text-amber-400 text-xs rounded-full border border-amber-500/30">
+                AI Recommended
+              </span>
+            )}
+          </div>
           <Link href={`/stock/${symbol}`} className="block">
             <h3 className="text-xl font-bold text-white hover:text-amber-400 transition-colors duration-200">{symbol}</h3>
           </Link>
@@ -108,8 +124,24 @@ export default function StockCard({
             ${displayPrice.toFixed(2)}
           </p>
         </div>
-        <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase border ${signalColors[signal]}`}>
-          {signal}
+        <div className="flex flex-col items-end gap-2">
+          <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase border ${signalColors[signal]}`}>
+            {signal}
+          </div>
+          {(stopLoss || target) && (
+            <div className="flex gap-2">
+              {stopLoss && (
+                <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded border border-red-500/30">
+                  SL: {stopLoss}
+                </span>
+              )}
+              {target && (
+                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded border border-emerald-500/30">
+                  TGT: {target}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
